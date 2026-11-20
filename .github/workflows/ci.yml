@@ -3,23 +3,51 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
-  test:
+  build:
+    name: Build and analyze
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install dependencies
+        run: pip install pytest pytest-cov
 
-      - name: Run tests
-        run: python -m pytest -v
+      - name: Run tests and generate coverage
+        run: python -m pytest --cov=src --cov-report=xml
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Authenticate with SonarQube
+        uses: SonarSource/sonarqube-auth-action@v1.2
+        id: auth
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          args: >
+            -Dsonar.organization=joriveraar-jpg
+            -Dsonar.projectKey=joriveraar-jpg_perceptron-simple
